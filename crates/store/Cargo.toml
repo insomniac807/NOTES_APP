@@ -1,0 +1,17 @@
+[package]
+name = "notes-store"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+notes-core = { path = "../core" }
+notes-oplog = { path = "../oplog" }
+serde.workspace = true
+serde_yaml.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+rusqlite.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,17 @@
+# Rust
+target/
+**/target/
+
+# Node / Vite / frontend
+packages/frontend/node_modules/
+packages/frontend/dist/
+packages/frontend/.vite/
+
+# Tauri build outputs
+apps/desktop/src-tauri/target/
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

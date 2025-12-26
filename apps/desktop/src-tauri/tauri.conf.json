@@ -1,0 +1,21 @@
+{
+  "productName": "Notes Desktop",
+  "version": "0.1.0",
+  "identifier": "com.example.notes",
+  "build": {
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../packages/frontend/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Notes Desktop",
+        "width": 1200,
+        "height": 800,
+        "resizable": true
+      }
+    ]
+  }
+}

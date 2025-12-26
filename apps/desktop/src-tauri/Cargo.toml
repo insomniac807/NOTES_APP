@@ -1,0 +1,28 @@
+[package]
+name = "notes-desktop"
+version = "0.1.0"
+edition = "2021"
+
+[package.metadata.tauri.bundle.windows]
+icon-path = ["icons/icon.ico"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+notes-store = { path = "../../../crates/store" }
+notes-plugin-host = { path = "../../../crates/plugin-host" }
+notes-oplog = { path = "../../../crates/oplog" }
+notes-core = { path = "../../../crates/core" }
+notes-sync = { path = "../../../crates/sync" }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tauri = { version = "2", features = ["tray-icon"] }
+serde_yaml.workspace = true
+chrono.workspace = true
+ulid.workspace = true
+dirs.workspace = true
+hex.workspace = true
+
+[dependencies.tauri-plugin-shell]
+version = "2"

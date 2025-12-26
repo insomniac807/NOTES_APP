@@ -1,0 +1,10 @@
+{
+  "id": "com.example.hello-world",
+  "name": "Hello World",
+  "version": "0.1.0",
+  "api_version": "0.1",
+  "description": "Example plugin manifest",
+  "author": "codex",
+  "permissions": ["commands:register"],
+  "entrypoint": "plugin.wasm"
+}

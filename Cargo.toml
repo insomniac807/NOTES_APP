@@ -1,0 +1,29 @@
+[workspace]
+members = [
+  "crates/core",
+  "crates/oplog",
+  "crates/store",
+  "crates/sync",
+  "crates/plugin-host",
+  "apps/desktop/src-tauri"
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1"
+ulid = "1.1"
+sha2 = "0.10"
+thiserror = "1"
+chrono = { version = "0.4", features = ["clock"] }
+rusqlite = { version = "0.30", features = ["bundled"] }
+dirs = "5"
+rand = "0.8"
+hex = "0.4"
+ed25519-dalek = { version = "1", features = ["std"] }
+base64 = "0.21"
+local_ipaddress = "0.1.3"
