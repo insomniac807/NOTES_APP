@@ -41,6 +41,14 @@ type TrustedDevice = {
   allow_auto_sync: boolean;
 };
 
+type SyncEvent = {
+  timestamp: string;
+  direction: string;
+  peer: string;
+  status: string;
+  detail?: string;
+};
+
 export function App() {
   const [status, setStatus] = useState("checking...");
   const [docs, setDocs] = useState<DocumentSummary[]>([]);
@@ -66,6 +74,7 @@ export function App() {
   const [discoveryPort, setDiscoveryPort] = useState<number>(53333);
   const [syncPort, setSyncPort] = useState<number>(53334);
   const [transportSecret, setTransportSecret] = useState<string>("");
+  const [syncEvents, setSyncEvents] = useState<SyncEvent[]>([]);
 
   useEffect(() => {
     invoke<string>("health_check")
@@ -76,6 +85,7 @@ export function App() {
     loadDevice();
     loadAutoSync();
     loadNetworkConfig();
+    loadSyncEvents();
   }, []);
 
   async function refreshList() {
@@ -327,8 +337,17 @@ export function App() {
 
   async function loadTrusted() {
     try {
-      const list = await invoke<{ device_id: string; public_key: string }[]>("list_trusted_devices");
+      const list = await invoke<TrustedDevice[]>("list_trusted_devices");
       setTrusted(list);
+    } catch (err: any) {
+      setError(String(err));
+    }
+  }
+
+  async function loadSyncEvents() {
+    try {
+      const events = await invoke<SyncEvent[]>("list_sync_events");
+      setSyncEvents(events);
     } catch (err: any) {
       setError(String(err));
     }
@@ -590,6 +609,26 @@ export function App() {
               <div style={{ fontSize: "0.75rem", color: "#777", marginTop: "0.25rem" }}>
                 Note: changes apply after restart; peers must share the same secret.
               </div>
+            </div>
+            <div style={{ marginTop: "0.75rem" }}>
+              <div style={{ fontSize: "0.9rem", fontWeight: 600 }}>Sync Log</div>
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.35rem" }}>
+                <button onClick={loadSyncEvents}>Refresh</button>
+                <span style={{ fontSize: "0.8rem", color: "#666" }}>showing last {Math.min(syncEvents.length, 8)}</span>
+              </div>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: "0.8rem", color: "#333" }}>
+                {syncEvents.slice(-8).reverse().map((e, idx) => (
+                  <li key={idx} style={{ marginBottom: "0.25rem" }}>
+                    <div>
+                      <strong>{e.direction}</strong> {e.status} — {e.peer}
+                    </div>
+                    <div style={{ color: "#666" }}>
+                      {new Date(e.timestamp).toLocaleTimeString()} {e.detail ? `· ${e.detail}` : ""}
+                    </div>
+                  </li>
+                ))}
+                {syncEvents.length === 0 && <li style={{ color: "#777" }}>No sync events yet.</li>}
+              </ul>
             </div>
           </div>
         </div>

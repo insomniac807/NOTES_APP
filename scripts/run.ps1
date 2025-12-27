@@ -36,15 +36,32 @@ if ($normalizedMode -eq "prod") {
     $normalizedMode = "build"
 }
 
+function Start-Frontend($mode) {
+    $frontendScript = Join-Path $root "scripts/frontend.ps1"
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "powershell"
+    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$frontendScript`" $mode"
+    $psi.WorkingDirectory = $root
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $proc = New-Object System.Diagnostics.Process
+    $proc.StartInfo = $psi
+    $proc.Start() | Out-Null
+    Write-Host "Started frontend (detached) pid=$($proc.Id)" -ForegroundColor Cyan
+}
+
 Push-Location $desktopDir
 try {
     switch ($normalizedMode) {
         "dev" {
             Write-Host "Launching Notes Desktop in dev mode..." -ForegroundColor Cyan
+            Start-Frontend "dev"
             cargo tauri dev
         }
         "build" {
             Write-Host "Building production bundle..." -ForegroundColor Cyan
+            Start-Frontend "build"
             cargo tauri build
         }
     }

@@ -131,6 +131,10 @@ struct AppState {
     trust_store: Arc<Mutex<TrustStore>>,
     op_log: Arc<Mutex<OpLogStore>>,
     auto_sync_enabled: Arc<std::sync::atomic::AtomicBool>,
+    sync_events: Arc<Mutex<Vec<SyncEvent>>>,
+    discovery_port: Arc<std::sync::atomic::AtomicU16>,
+    sync_port: Arc<std::sync::atomic::AtomicU16>,
+    psk: Arc<Mutex<Option<[u8; 32]>>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -145,6 +149,15 @@ struct NetworkSettings {
     discovery_port: u16,
     sync_port: u16,
     transport_secret: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct SyncEvent {
+    timestamp: String,
+    direction: String,
+    peer: String,
+    status: String,
+    detail: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -362,14 +375,17 @@ fn start_sync_listener(
     store: Arc<Mutex<Store>>,
     op_log: Arc<Mutex<OpLogStore>>,
     trust_path: PathBuf,
-    sync_port: u16,
-    psk: Option<[u8; 32]>,
+    sync_port: Arc<std::sync::atomic::AtomicU16>,
+    psk: Arc<Mutex<Option<[u8; 32]>>>,
+    sync_events: Arc<Mutex<Vec<SyncEvent>>>,
 ) {
     // Runs a tiny TCP listener loop that decrypts/verifies incoming envelopes, checks trust,
     // applies only new ops to the store, and persists them to the op-log.
     std::thread::spawn(move || loop {
-        let transport = notes_sync::NetTransport::new_with_psk(0, sync_port, psk);
-        let _ = transport.serve_once(&trust_path, |incoming_ops| {
+        let port = sync_port.load(std::sync::atomic::Ordering::Relaxed);
+        let psk_copy = psk.lock().ok().and_then(|p| p.clone());
+        let transport = notes_sync::NetTransport::new_with_psk(0, port, psk_copy);
+        let res = transport.serve_once(&trust_path, |peer_addr, incoming_ops| {
             if let (Ok(mut log), Ok(mut store_guard)) = (op_log.lock(), store.lock()) {
                 let fresh: Vec<_> = incoming_ops
                     .into_iter()
@@ -379,12 +395,66 @@ fn start_sync_listener(
                 for op in fresh {
                     if store_guard.apply(op.clone()).is_ok() {
                         applied.push(op);
+                    } else {
+                        record_sync_event(
+                            &sync_events,
+                            SyncEvent {
+                                timestamp: Utc::now().to_rfc3339(),
+                                direction: "incoming".into(),
+                                peer: peer_addr.to_string(),
+                                status: "apply_failed".into(),
+                                detail: Some("store rejected op".into()),
+                            },
+                        );
                     }
                 }
-                let _ = log.merge(&applied);
+                if !applied.is_empty() {
+                    let _ = log.merge(&applied);
+                    record_sync_event(
+                        &sync_events,
+                        SyncEvent {
+                            timestamp: Utc::now().to_rfc3339(),
+                            direction: "incoming".into(),
+                            peer: peer_addr.to_string(),
+                            status: "applied".into(),
+                            detail: Some(format!("{} ops", applied.len())),
+                        },
+                    );
+                }
             }
         });
+        if let Err(e) = res {
+            record_sync_event(
+                &sync_events,
+                SyncEvent {
+                    timestamp: Utc::now().to_rfc3339(),
+                    direction: "incoming".into(),
+                    peer: format!("0.0.0.0:{}", port),
+                    status: "error".into(),
+                    detail: Some(e.to_string()),
+                },
+            );
+        }
         std::thread::sleep(std::time::Duration::from_millis(200));
+    });
+}
+
+fn start_advertise_loop(
+    discovery_port: Arc<std::sync::atomic::AtomicU16>,
+    identity: DeviceIdentity,
+) {
+    std::thread::spawn(move || loop {
+        let port = discovery_port.load(std::sync::atomic::Ordering::Relaxed);
+        if let Ok(sock) = std::net::UdpSocket::bind(("0.0.0.0", 0)) {
+            let _ = sock.set_broadcast(true);
+            let pkt = serde_json::to_vec(&serde_json::json!({
+                "device_id": identity.device_id,
+                "public_key": identity.public_key
+            }))
+            .unwrap_or_else(|_| b"DISCOVER".to_vec());
+            let _ = sock.send_to(&pkt, std::net::SocketAddr::from(([255, 255, 255, 255], port)));
+        }
+        std::thread::sleep(std::time::Duration::from_secs(5));
     });
 }
 
@@ -393,9 +463,10 @@ fn start_auto_sync(
     trust_store: Arc<Mutex<TrustStore>>,
     device_identity: DeviceIdentity,
     enabled: Arc<std::sync::atomic::AtomicBool>,
-    psk: Option<[u8; 32]>,
-    discovery_port: u16,
-    sync_port: u16,
+    psk: Arc<Mutex<Option<[u8; 32]>>>,
+    discovery_port: Arc<std::sync::atomic::AtomicU16>,
+    sync_port: Arc<std::sync::atomic::AtomicU16>,
+    sync_events: Arc<Mutex<Vec<SyncEvent>>>,
 ) {
     // Periodically discovers peers and pushes ops to trusted+auto-approved devices.
     std::thread::spawn(move || loop {
@@ -403,10 +474,13 @@ fn start_auto_sync(
             std::thread::sleep(std::time::Duration::from_secs(2));
             continue;
         }
-        let transport = notes_sync::NetTransport::new_with_psk(discovery_port, sync_port, psk);
-    let peers = transport
-        .listen_discovery(std::time::Duration::from_millis(250))
-        .unwrap_or_default();
+        let disc_port = discovery_port.load(std::sync::atomic::Ordering::Relaxed);
+        let sync_port_val = sync_port.load(std::sync::atomic::Ordering::Relaxed);
+        let psk_copy = psk.lock().ok().and_then(|p| p.clone());
+        let transport = notes_sync::NetTransport::new_with_psk(disc_port, sync_port_val, psk_copy);
+        let peers = transport
+            .listen_discovery(std::time::Duration::from_millis(250))
+            .unwrap_or_default();
         let ops = op_log.lock().map(|l| l.entries()).unwrap_or_default();
         for peer in peers {
             let trusted = peer
@@ -424,7 +498,29 @@ fn start_auto_sync(
                 continue;
             }
             let svc = SyncService::new(transport.clone(), device_identity.clone(), ops.clone());
-            let _ = svc.pair_and_sync(&peer.addr.to_string());
+            let result = svc.pair_and_sync(&peer.addr.to_string());
+            match result {
+                Ok(_) => record_sync_event(
+                    &sync_events,
+                    SyncEvent {
+                        timestamp: Utc::now().to_rfc3339(),
+                        direction: "outgoing".into(),
+                        peer: peer.addr.to_string(),
+                        status: "synced".into(),
+                        detail: Some(format!("{} ops", ops.len())),
+                    },
+                ),
+                Err(e) => record_sync_event(
+                    &sync_events,
+                    SyncEvent {
+                        timestamp: Utc::now().to_rfc3339(),
+                        direction: "outgoing".into(),
+                        peer: peer.addr.to_string(),
+                        status: "error".into(),
+                        detail: Some(e.to_string()),
+                    },
+                ),
+            }
         }
         std::thread::sleep(std::time::Duration::from_secs(5));
     });
@@ -478,6 +574,17 @@ fn set_trusted_auto_sync(
         .map_err(|e| e.to_string())
 }
 
+fn record_sync_event(events: &Arc<Mutex<Vec<SyncEvent>>>, event: SyncEvent) {
+    if let Ok(mut buf) = events.lock() {
+        buf.push(event);
+        const MAX_EVENTS: usize = 100;
+        if buf.len() > MAX_EVENTS {
+            let excess = buf.len() - MAX_EVENTS;
+            buf.drain(0..excess);
+        }
+    }
+}
+
 #[tauri::command]
 fn get_network_config(state: tauri::State<AppState>) -> Result<NetworkSettings, String> {
     let cfg = state.config.lock().map_err(|e| e.to_string())?.clone();
@@ -502,11 +609,34 @@ fn set_network_config(
         cfg.transport_secret = transport_secret.clone();
         save_config(&state.config_path, &cfg).map_err(|e| e.to_string())?;
     }
+    if let Ok(parsed) = parse_psk_hex(&transport_secret) {
+        if let Ok(mut psk) = state.psk.lock() {
+            *psk = parsed;
+        }
+    } else {
+        return Err("transport_secret must be 32-byte hex (64 chars)".into());
+    }
+    state
+        .discovery_port
+        .store(discovery_port, std::sync::atomic::Ordering::Relaxed);
+    state
+        .sync_port
+        .store(sync_port, std::sync::atomic::Ordering::Relaxed);
     Ok(NetworkSettings {
         discovery_port,
         sync_port,
         transport_secret,
     })
+}
+
+#[tauri::command]
+fn list_sync_events(state: tauri::State<AppState>) -> Result<Vec<SyncEvent>, String> {
+    let events = state
+        .sync_events
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
+    Ok(events)
 }
 
 #[tauri::command]
@@ -519,10 +649,31 @@ fn sync_now(state: tauri::State<AppState>, target_device: String) -> Result<(), 
         .lock()
         .map_err(|e| e.to_string())?
         .entries();
-    let service = SyncService::new(transport, state.device_identity.clone(), ops);
-    service
-        .pair_and_sync(&target_device)
-        .map_err(|e| e.to_string())
+    let service = SyncService::new(transport, state.device_identity.clone(), ops.clone());
+    let result = service.pair_and_sync(&target_device);
+    match result {
+        Ok(_) => record_sync_event(
+            &state.sync_events,
+            SyncEvent {
+                timestamp: Utc::now().to_rfc3339(),
+                direction: "outgoing".into(),
+                peer: target_device.clone(),
+                status: "synced".into(),
+                detail: Some(format!("{} ops", ops.len())),
+            },
+        ),
+        Err(ref e) => record_sync_event(
+            &state.sync_events,
+            SyncEvent {
+                timestamp: Utc::now().to_rfc3339(),
+                direction: "outgoing".into(),
+                peer: target_device.clone(),
+                status: "error".into(),
+                detail: Some(e.to_string()),
+            },
+        ),
+    }
+    result.map_err(|e| e.to_string())
 }
 
 fn load_config(path: &PathBuf) -> Result<AppConfig, String> {
@@ -596,18 +747,33 @@ fn default_auto_sync() -> bool {
 
 fn psk_from_config(cfg: &AppConfig) -> Option<[u8; 32]> {
     cfg.transport_secret.as_ref().and_then(|s| {
-        hex::decode(s)
-            .ok()
-            .and_then(|bytes| {
-                if bytes.len() == 32 {
-                    let mut key = [0u8; 32];
-                    key.copy_from_slice(&bytes);
-                    Some(key)
-                } else {
-                    None
-                }
-            })
+        hex::decode(s).ok().and_then(|bytes| {
+            if bytes.len() == 32 {
+                let mut key = [0u8; 32];
+                key.copy_from_slice(&bytes);
+                Some(key)
+            } else {
+                None
+            }
+        })
     })
+}
+
+fn parse_psk_hex(secret: &Option<String>) -> Result<Option<[u8; 32]>, String> {
+    if let Some(s) = secret {
+        if s.trim().is_empty() {
+            return Ok(None);
+        }
+        let bytes = hex::decode(s).map_err(|e| format!("invalid hex: {e}"))?;
+        if bytes.len() != 32 {
+            return Err("transport_secret must be 32 bytes (64 hex chars)".into());
+        }
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&bytes);
+        Ok(Some(key))
+    } else {
+        Ok(None)
+    }
 }
 
 fn main() {
@@ -621,29 +787,34 @@ fn main() {
     let trust_store =
         TrustStore::load_or_default(resolve_trust_path()).expect("failed to load trust store");
     let psk = psk_from_config(&config);
-    notes_sync::NetTransport::new_with_psk(config.discovery_port, config.sync_port, psk)
-        .advertise_loop_with_identity(device_identity.clone(), std::time::Duration::from_secs(5));
+    let discovery_port = Arc::new(std::sync::atomic::AtomicU16::new(config.discovery_port));
+    let sync_port = Arc::new(std::sync::atomic::AtomicU16::new(config.sync_port));
+    let psk_arc: Arc<Mutex<Option<[u8; 32]>>> = Arc::new(Mutex::new(psk));
+    start_advertise_loop(discovery_port.clone(), device_identity.clone());
     let store = Arc::new(Mutex::new(store));
     let trust_store = Arc::new(Mutex::new(trust_store));
     let op_log: Arc<Mutex<OpLogStore>> =
         Arc::new(Mutex::new(OpLogStore::load(resolve_oplog_path())));
     let auto_sync_enabled =
         Arc::new(std::sync::atomic::AtomicBool::new(config.auto_sync_enabled));
+    let sync_events: Arc<Mutex<Vec<SyncEvent>>> = Arc::new(Mutex::new(Vec::new()));
     start_sync_listener(
         store.clone(),
         op_log.clone(),
         resolve_trust_path(),
-        config.sync_port,
-        psk,
+        sync_port.clone(),
+        psk_arc.clone(),
+        sync_events.clone(),
     );
     start_auto_sync(
         op_log.clone(),
         trust_store.clone(),
         device_identity.clone(),
         auto_sync_enabled.clone(),
-        psk,
-        config.discovery_port,
-        config.sync_port,
+        psk_arc.clone(),
+        discovery_port.clone(),
+        sync_port.clone(),
+        sync_events.clone(),
     );
 
     tauri::Builder::default()
@@ -656,6 +827,10 @@ fn main() {
             trust_store,
             op_log,
             auto_sync_enabled,
+            sync_events,
+            discovery_port,
+            sync_port,
+            psk: psk_arc,
         })
         .invoke_handler(tauri::generate_handler![
             health_check,
@@ -677,6 +852,7 @@ fn main() {
             set_trusted_auto_sync,
             get_network_config,
             set_network_config,
+            list_sync_events,
             sync_now,
             discover_peers
         ])

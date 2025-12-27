@@ -187,14 +187,14 @@ impl NetTransport {
     pub fn serve_once(
         &self,
         trust_path: &Path,
-        op_handler: impl Fn(Vec<notes_oplog::Operation>),
+        op_handler: impl Fn(SocketAddr, Vec<notes_oplog::Operation>),
     ) -> Result<(), SyncError> {
         let listener = TcpListener::bind(("0.0.0.0", self.sync_port))
             .map_err(|e| SyncError::Io(e.to_string()))?;
         listener
             .set_nonblocking(true)
             .map_err(|e| SyncError::Io(e.to_string()))?;
-        if let Ok((mut stream, _)) = listener.accept() {
+        if let Ok((mut stream, addr)) = listener.accept() {
             let mut buf = Vec::new();
             std::io::copy(&mut stream, &mut buf).map_err(|e| SyncError::Io(e.to_string()))?;
             let payload = if let Some(psk) = self.psk {
@@ -245,7 +245,7 @@ impl NetTransport {
                 serde_json::to_vec(&envelope.ops).map_err(|e| SyncError::Io(e.to_string()))?;
             vk.verify(&payload, &sig)
                 .map_err(|_| SyncError::NotTrusted)?;
-            op_handler(envelope.ops);
+            op_handler(addr, envelope.ops);
         }
         Ok(())
     }
