@@ -4,7 +4,7 @@
 - **Desktop shell**: Tauri (Rust) in `apps/desktop/src-tauri`.
 - **Frontend**: Vite/React in `packages/frontend`.
 - **Core crates**: `crates/core` (docs/frontmatter), `crates/oplog` (ops schema + hashes), `crates/store` (vault + SQLite index + op apply/conflict/hash checks), `crates/sync` (discovery/sync, trust, device identity, optional PSK crypto), `crates/plugin-host` (manifest validation, plugin registry).
-- **Docs**: `docs/ARCHITECTURE.md` (expanded), `docs/ROADMAP.mp` (roadmap), `docs/CONTEXT_SUMMARY.md` (this file).
+- **Docs**: `docs/ARCHITECTURE.md` (expanded), `docs/ROADMAP.md` (roadmap), `docs/CONTEXT_SUMMARY.md` (this file).
 - **Repo**: Git initialized with remote `origin https://github.com/insomniac807/NOTES_APP`. `.gitignore` added (targets, node_modules, dist, .idea/.vscode, etc.). License: AGPL-3.0 (short file pointing to FSF link).
 
 ## Data Model & Files
@@ -38,15 +38,15 @@
 - Sync: `discover_peers` (uses configured ports/PSK), `sync_now` (sends signed/encrypted envelope).
 - Background: op-log store (dedup/persist), sync listener (trust + signature + optional PSK), auto-sync loop (trusted+allowed peers), advertise loop.
 
-## Roadmap Highlights (from docs/ROADMAP.mp)
-- Near-term: sync error surfacing/log pane, hot-reload network settings, richer markdown rendering, improved trust UX, basic plugin listing/sample.
-- Security: optional Noise/TLS, vault encryption, per-op signatures/audit.
-- Reliability: conflict resolution UI, batch sync by hash, index hygiene.
-- UX: command palette, search filters, theming.
-- Plugins: sandboxed WASM with capabilities, distribution/signing, event subscriptions.
-- Testing/Ops: E2E, fuzzing parsers, logging/telemetry (opt-in).
+## Roadmap Highlights (from docs/ROADMAP.md)
+- Phase 1 (foundation): sync retries/backoff, per-peer status, conflict UI, richer error taxonomy; Noise/TLS option; full hot-reload of network settings; plugin runtime MVP (WASM + capability APIs + sample); richer preview/command palette.
+- Phase 2 (parity): backlinks/graph/block model, tag/type filters, fuzzy search; conflict merge UI; batch/missing-op sync; plugin ecosystem (signed manifests, cache/updates).
+- Phase 3 (ingestion/citations): built-in reader/PDF annotations; citation style templates; Readwise-like import/export/e-reader hooks.
+- Phase 4 (media/voice): media playback + transcription; voice commands to capture highlights.
+- Phase 5 (polish): theming/layout, command palette/shortcuts, link graph, autocomplete.
+- Testing/Ops: E2E, fuzzing, optional logging/telemetry (opt-in).
 
 ## Outstanding considerations
-- Transport secret changes currently require restart; hot-reload not implemented.
 - Plugin execution is still a stub (manifest/registration only; no WASM runtime).
-- No E2E encryption; PSK is optional transport-level confidentiality.
+- No Noise/TLS/E2E yet; PSK is optional transport-level confidentiality.
+- Sync robustness needs retries/backoff, conflict UI, and per-peer status.

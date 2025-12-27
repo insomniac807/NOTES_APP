@@ -2,34 +2,33 @@
 
 This document tracks near-term and mid-term goals for the notes app across reliability, security, UX, and extensibility.
 
-## Near-term (1–2 sprints)
-- **Sync correctness**: surface sync/validation errors in the UI; add a sync event log pane; retry/backoff for failed targets.
-- **Network settings hot-reload**: restart listeners/transports when ports or PSK change (avoid manual restart).
-- **Markdown UX**: richer render (links/code/italics), inline formatting shortcuts, and better conflict indicators.
-- **Trust UX**: clearer “trusted + auto-sync” states; show our device ID/PK prominently in settings.
-- **Plugin basics**: list loaded plugins, allow unregister/remove, and a sample WASM plugin with a simple command.
+## Phase 1: Harden the foundation (immediate)
+- **Sync robustness**: retries/backoff, per-peer status, richer error taxonomy (trust/signature/PSK/hash/connect), conflict resolution UI, auto-refreshing sync log.
+- **Security**: add Noise/TLS transport option alongside PSK; tighten validation; plan for E2E later.
+- **Hot-reload**: fully reload discovery/listener/auto-sync when ports/PSK change, with user feedback.
+- **Plugin runtime MVP**: sandboxed WASM with capability-scoped APIs (docs read/write, panels, commands); plugin listing/management; sample plugin.
+- **Editor base**: richer preview (links/code/italics/bold), command palette, and shortcut polish.
 
-## Security & transport
-- **Noise/TLS option**: offer authenticated transport (Noise NN/IK or TLS with device certs) as an alternative to PSK.
-- **Op verification**: enforce `after_hash` on receive (already validated) plus optional per-op signatures for audit trails.
-- **Storage**: optional vault encryption-at-rest; config/trust/oplog sealed with OS keyring or a user passphrase.
+## Phase 2: Feature parity (near-term)
+- **Backlinks/graph/block model**: add backlinks, link graph, block refs, and richer editing to approach Obsidian/Notion experience; tag/type filters and fuzzy search.
+- **Conflict UX**: merge/accept UI for conflicts; show conflict copies.
+- **Retrying sync**: batch/missing-op sync (by hash/window) and backoff strategy.
+- **Plugin ecosystem**: capability APIs, signed manifests, local cache/update checks.
 
-## Reliability & scaling
-- **Conflict resolution UI**: show conflicts, allow merge/accept; automatic conflict naming already present.
-- **Batch sync**: request missing ops by hash/window instead of full-log push.
-- **Index hygiene**: vacuum/reindex commands; detect/repair corrupt docs/index.
+## Phase 3: Readwise-style ingestion & citations
+- **Built-in reader**: webview/PDF tabs with highlighting/annotations; export highlights to Markdown notes.
+- **Citation templates**: settings for default referencing style; templates for major academic styles.
+- **Readwise-like import/export**: e-reader/device highlight import/export hooks.
 
-## UX & productivity
-- **Keyboard + commands**: command palette, jump-to-note, quick create, and link auto-complete between notes.
-- **Search**: tag/type filters, fuzzy search, and link graph preview.
-- **Theming**: light/dark themes and compact/dense list modes.
+## Phase 4: Media & voice
+- **Media ingestion**: video/audio playback with transcription pipeline; highlight/annotate transcripts.
+- **Voice commands**: map voice triggers (e.g., “get paragraph”) to capture current audiobook transcript segments as highlights.
 
-## Plugins & extensibility
-- **Sandboxed WASM runtime**: execute plugins with capability-scoped APIs (docs read/write, UI panels).
-- **Plugin distribution**: signed plugin manifests, local cache, and update checks.
-- **Events**: emit note lifecycle events to plugins; subscription API in host.
+## Phase 5: UX polish & theming
+- **Theming/layout**: light/dark, compact/dense modes; smoother list/preview; keyboard-driven flows (jump-to-note, quick create).
+- **Search/graph**: advanced filters, link graph preview, link autocomplete.
 
-## Testing & ops
-- **E2E tests**: playwright/tauri-driver flows for CRUD/sync/trust.
-- **Fuzzing**: fuzz frontmatter/parser and sync envelope parsing/decryption.
-- **Telemetry/logging**: optional local logs for sync/discovery/trust; user opt-in telemetry plan (if ever enabled).
+## Testing & ops (ongoing)
+- E2E tests (playwright/tauri-driver) for CRUD/sync/trust.
+- Fuzzing for parsers/sync envelopes.
+- Optional local logging/telemetry (opt-in) for sync/discovery/trust.

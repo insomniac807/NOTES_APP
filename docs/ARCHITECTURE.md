@@ -63,9 +63,12 @@ This is a cross-platform notes application built as a Tauri desktop shell (Rust 
 
 ## Extensibility roadmap
 - Richer markdown render and plugin execution (WASM sandbox).
-- Conflict resolution UI and sync event log.
-- Hot-reload network settings (ports/PSK) without restart.
-- Migration to Noise/TLS for authenticated transport and key exchange.
+- Conflict resolution UI and sync event log; per-peer status/retry/backoff.
+- Hot-reload network settings (ports/PSK) without restart (partially done).
+- Migration to Noise/TLS for authenticated transport and key exchange; consider E2E.
+- Built-in reader/PDF annotations, citation templates, and Readwise-style ingestion.
+- Media playback + transcription + voice highlight commands.
+- Backlinks/graph/block editing to approach Obsidian/Notion parity.
 
 ## Module map
 - `apps/desktop/src-tauri`: Tauri main, commands, background workers, config/device/trust/oplog management.
