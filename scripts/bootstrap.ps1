@@ -1,9 +1,12 @@
 param(
-    [switch]$SkipFrontend
+    [switch]$SkipFrontend,
+    [string]$RepoUrl = "https://github.com/insomniac807/NOTES_APP.git",
+    [string]$Branch = "master",
+    [string]$CloneDir = ""
 )
 
 $ErrorActionPreference = "Stop"
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$originalLocation = Get-Location
 
 function Require-Command {
     param([string]$Name)
@@ -16,6 +19,30 @@ function Require-Command {
 Write-Host "Notes app bootstrap starting..." -ForegroundColor Cyan
 Require-Command cargo
 Require-Command npm
+
+# Detect repo root or clone if missing
+$repoRoot = $null
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$candidate = Join-Path $scriptRoot ".."
+if (Test-Path (Join-Path $candidate "Cargo.toml")) {
+    $repoRoot = Resolve-Path $candidate
+} elseif (Test-Path (Join-Path (Get-Location) "Cargo.toml")) {
+    $repoRoot = Get-Location
+} else {
+    Require-Command git
+    if ([string]::IsNullOrWhiteSpace($CloneDir)) {
+        $CloneDir = Join-Path (Get-Location) "NOTES_APP"
+    }
+    if (-not (Test-Path $CloneDir)) {
+        Write-Host "Cloning $RepoUrl (branch $Branch) to $CloneDir ..." -ForegroundColor Cyan
+        git clone --branch $Branch $RepoUrl $CloneDir
+    } else {
+        Write-Host "Using existing directory at $CloneDir" -ForegroundColor Yellow
+    }
+    $repoRoot = Resolve-Path $CloneDir
+}
+
+Set-Location $repoRoot
 
 if (-not (Get-Command cargo-tauri -ErrorAction SilentlyContinue)) {
     Write-Host "cargo-tauri not found; installing tauri-cli (^2)..." -ForegroundColor Yellow
@@ -33,7 +60,11 @@ if (-not $SkipFrontend) {
 }
 
 Write-Host "Building desktop app (Tauri)..." -ForegroundColor Cyan
-cargo tauri build --manifest-path (Join-Path $repoRoot "apps/desktop/src-tauri/Cargo.toml")
+Push-Location (Join-Path $repoRoot "apps/desktop/src-tauri")
+cargo tauri build
+Pop-Location
 
 $releaseDir = Join-Path $repoRoot "apps/desktop/src-tauri/target/release"
 Write-Host "Done. Binaries are under: $releaseDir" -ForegroundColor Green
+
+Set-Location $originalLocation

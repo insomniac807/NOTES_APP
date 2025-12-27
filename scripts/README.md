@@ -2,7 +2,7 @@
 
 - `Justfile` – common tasks: `just lint`, `just test`, `just web-build`, `just desktop-build`, `just bootstrap` (Unix) or `just bootstrap-windows`.
 - `scripts/check.ps1` – runs `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`; with `-Frontend` also runs `npm ci` + `npm run build` in `packages/frontend`.
-- `scripts/bootstrap.sh` / `scripts/bootstrap.ps1` – one-shot setup + build: installs deps (npm), fetches cargo crates, builds the frontend, and runs `cargo tauri build`.
+- `scripts/bootstrap.sh` / `scripts/bootstrap.ps1` - one-shot setup + build: installs deps (npm), fetches cargo crates, builds the frontend, and runs `cargo tauri build`. If not run inside a repo, the scripts will clone `https://github.com/insomniac807/NOTES_APP.git` (branch `master`) into `./NOTES_APP` by default.
 
 One-command bootstrap from GitHub (default branch = master; requires public access or a tokenized URL):
 - Windows (PowerShell 5+): `powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/insomniac807/NOTES_APP/master/scripts/bootstrap.ps1' -OutFile bootstrap.ps1; & ./bootstrap.ps1"`
