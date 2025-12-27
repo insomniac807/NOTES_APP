@@ -3,11 +3,12 @@ param(
 )
 
 Write-Host "Running Rust format + clippy + tests" -ForegroundColor Cyan
-cargo fmt
+cargo fmt --all -- --check
 cargo clippy --all-targets --workspace -- -D warnings
 cargo test --workspace
 
 if ($Frontend) {
-    Write-Host "Running frontend lint/build" -ForegroundColor Cyan
+    Write-Host "Installing frontend deps + building" -ForegroundColor Cyan
+    npm --prefix packages/frontend ci
     npm --prefix packages/frontend run build
 }
