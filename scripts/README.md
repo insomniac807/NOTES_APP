@@ -5,7 +5,7 @@
 - `scripts/bootstrap.sh` / `scripts/bootstrap.ps1` – one-shot setup + build: installs deps (npm), fetches cargo crates, builds the frontend, and runs `cargo tauri build`.
 
 One-command bootstrap from GitHub (default branch = master; requires public access or a tokenized URL):
-- Windows (PowerShell 5+): `powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.com/insomniac807/NOTES_APP/master/scripts/bootstrap.ps1 -UseBasicParsing | iex"`
+- Windows (PowerShell 5+): `powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/insomniac807/NOTES_APP/master/scripts/bootstrap.ps1' -OutFile bootstrap.ps1; & ./bootstrap.ps1"`
 - macOS/Linux (bash): `curl -sSf https://raw.githubusercontent.com/insomniac807/NOTES_APP/master/scripts/bootstrap.sh | bash`
 
 If the repository is private or the files are not pushed yet, clone the repo first and run locally:
