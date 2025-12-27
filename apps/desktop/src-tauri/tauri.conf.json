@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "identifier": "com.example.notes",
   "build": {
-    "beforeBuildCommand": "",
-    "beforeDevCommand": "",
+    "beforeBuildCommand": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { if (-not $env:NOTES_APP_ROOT) { throw 'NOTES_APP_ROOT not set' }; Set-Location $env:NOTES_APP_ROOT; & .\\scripts\\frontend.ps1 build }\"",
+    "beforeDevCommand": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { if (-not $env:NOTES_APP_ROOT) { throw 'NOTES_APP_ROOT not set' }; Set-Location $env:NOTES_APP_ROOT; & .\\scripts\\frontend.ps1 dev }\"",
     "devUrl": "http://localhost:5173",
-    "frontendDist": "../packages/frontend/dist"
+    "frontendDist": "../../../packages/frontend/dist"
   },
   "app": {
     "windows": [
